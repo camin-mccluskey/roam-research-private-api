@@ -1,7 +1,7 @@
-const RoamPrivateApi = require( '../' );
-const secrets = require( '../secrets.json' );
+import RoamPrivateApi from '../';
+import { graph, email, password } from '../secrets.json';
 
-const api = new RoamPrivateApi( secrets.graph, secrets.email, secrets.password, {
+const api = new RoamPrivateApi( graph, email, password, {
 	headless: false,
 	folder: './tmp/',
 	nodownload: false,

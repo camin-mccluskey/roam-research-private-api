@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-const yargs = require( 'yargs' );
-const fs = require( 'fs' );
+import { option } from 'yargs';
+import { readFileSync } from 'fs';
 
-const argv = yargs
-	.option( 'graph', {
+const argv = option( 'graph', {
 		alias: 'g',
 		description: 'Your graph name',
 		type: 'string',
@@ -34,7 +33,7 @@ const argv = yargs
 		( argv ) => {
 			let input = '';
 			if ( argv.stdin ) {
-				input = fs.readFileSync( 0, 'utf-8' );
+				input = readFileSync( 0, 'utf-8' );
 			} else {
 				input = argv[ '_' ].join( ' ' );
 			}
@@ -43,7 +42,7 @@ const argv = yargs
 				console.warn( 'You have to provide a note at least 3 chars long' );
 				return;
 			}
-			const RoamPrivateApi = require( '../' );
+			const RoamPrivateApi = require( '../' ).default;
 			const api = new RoamPrivateApi( argv.graph, argv.email, argv.password, {
 				headless: ! argv.debug,
 			} );

@@ -2,43 +2,41 @@
 	"name": "roam-research-private-api",
 	"version": "0.9.3",
 	"description": "Library that loads your Roam Research graph as a browser and performs tasks as you.",
-	"homepage": "https://deliber.at/roam/roam-api/",
+	"homepage": "",
 	"keywords": [
 		"roam",
 		"roam-research",
 		"evernote",
 		"puppeteer"
 	],
+  "type": "module",
 	"main": "RoamPrivateApi.js",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/artpi/roam-research-private-api"
+		"url": ""
 	},
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"evernote_sync": "node examples/sync_evernote.js",
 		"reformat-files": "./node_modules/.bin/prettier --ignore-path .eslintignore --write \"**/*.{js,jsx,json,ts,tsx}\""
 	},
 	"bin": {
-		"roam-api": "examples/cmd.js",
-		"roam-evernote-sync": "examples/sync_evernote.js"
+		"roam-api": "examples/cmd.js"
 	},
-	"author": "Artur Piszek ( piszek.com )",
+	"author": "Camin McCluskey ( camin.xyz )",
 	"license": "MIT",
 	"dependencies": {
 		"enml-js": "^0.1.3",
-		"evernote": "^2.0.5",
-		"moment": "^2.27.0",
-		"node-fetch": "^2.6.1",
+		"moment": "^2.29.4",
+		"node-fetch": "^3.3.0",
 		"node-unzip-2": "^0.2.8",
-		"puppeteer": "^5.5.0",
-		"yargs": "^15.4.1"
+		"puppeteer": "^19.6.3",
+		"yargs": "^17.6.2"
 	},
 	"devDependencies": {
-		"prettier": "npm:wp-prettier@2.0.5"
+		"prettier": "npm:wp-prettier@2.6.2"
 	},
 	"engines": {
-		"node": ">=12.0.0",
-		"npm": ">=6.0.0"
+		"node": ">=18.0.0",
+		"npm": ">=8.0.0"
 	}
 }

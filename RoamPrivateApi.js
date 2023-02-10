@@ -1,10 +1,18 @@
-const puppeteer = require( 'puppeteer' );
-const fs = require( 'fs' );
-const path = require('path');
-const os = require( 'os' );
-const unzip = require( 'node-unzip-2' );
-const { isString } = require( 'util' );
-const moment = require( 'moment' );
+import {
+	createReadStream,
+	createWriteStream,
+	lstatSync,
+	readdirSync,
+	readFile,
+	realpathSync,
+	unlinkSync,
+	writeFileSync,
+} from 'fs';
+import moment from 'moment';
+import { Parse } from 'node-unzip-2';
+import { tmpdir } from 'os';
+import { resolve as _resolve } from 'path';
+import { KnownDevices, launch } from 'puppeteer';
 
 /**
  * This class represents wraps Puppeteer and exposes a few methods useful in manipulating Roam Research.
@@ -20,9 +28,9 @@ class RoamPrivateApi {
 	constructor( db, login, pass, options = { headless: true, folder: null, nodownload: false } ) {
 		// If you dont pass folder option, we will use the system tmp directory.
 		if ( ! options.folder ) {
-			options.folder = os.tmpdir();
+			options.folder = tmpdir();
 		}
-		options.folder = fs.realpathSync( options.folder );
+		options.folder = realpathSync( options.folder );
 		this.db = db;
 		this.login = login;
 		this.pass = pass;
@@ -47,23 +55,25 @@ class RoamPrivateApi {
 
 	/**
 	 * Create a block as a child of block.
-	 * @param {string} text 
+	 * @param {string} text
 	 * @param {uid} uid - parent UID where block has to be inserted.
 	 */
 	async createBlock( text, uid ) {
-		const result = await this.page.evaluate( ( text, uid ) => {
-			if ( ! window.roamAlphaAPI ) {
-				return Promise.reject( 'No Roam API detected' );
-			}
-			const result = window.roamAlphaAPI.createBlock(
-				{"location": 
-					{"parent-uid": uid, 
-					 "order": 0}, 
-				 "block": 
-					{"string": text}})
-			console.log( result );
-			return Promise.resolve( result );
-		}, text, uid );
+		const result = await this.page.evaluate(
+			( text, uid ) => {
+				if ( ! window.roamAlphaAPI ) {
+					return Promise.reject( 'No Roam API detected' );
+				}
+				const result = window.roamAlphaAPI.createBlock( {
+					location: { 'parent-uid': uid, order: 0 },
+					block: { string: text },
+				} );
+				console.log( result );
+				return Promise.resolve( result );
+			},
+			text,
+			uid
+		);
 		// Let's give time to sync.
 		await this.page.waitForTimeout( 1000 );
 		return result;
@@ -79,24 +89,27 @@ class RoamPrivateApi {
 		if ( ! limit ) {
 			limit = 1;
 		}
-		return await this.page.evaluate( ( query, limit ) => {
-			if ( ! window.roamAlphaAPI ) {
-				return Promise.reject( 'No Roam API detected' );
-			}
-			const result = window.roamAlphaAPI.q( query );
-			console.log( result );
-			if ( result.length > 100 ) {
-				return Promise.reject( 'Too many results. Is your query ok?' );
-
-			}
-			const limited = result.slice( 0, limit );
-			limited.forEach( ( block ) => {
-				const id = block[0];
-				console.log( 'DELETING', id );
-				window.roamAlphaAPI.deleteBlock( { block: { uid: id } } );
-			} );
-			return Promise.resolve( limited );
-		}, query, limit );
+		return await this.page.evaluate(
+			( query, limit ) => {
+				if ( ! window.roamAlphaAPI ) {
+					return Promise.reject( 'No Roam API detected' );
+				}
+				const result = window.roamAlphaAPI.q( query );
+				console.log( result );
+				if ( result.length > 100 ) {
+					return Promise.reject( 'Too many results. Is your query ok?' );
+				}
+				const limited = result.slice( 0, limit );
+				limited.forEach( ( block ) => {
+					const id = block[ 0 ];
+					console.log( 'DELETING', id );
+					window.roamAlphaAPI.deleteBlock( { block: { uid: id } } );
+				} );
+				return Promise.resolve( limited );
+			},
+			query,
+			limit
+		);
 	}
 
 	/**
@@ -106,14 +119,14 @@ class RoamPrivateApi {
 	 * @param {*} pageTitle - page title to find the blocks in.
 	 */
 	getQueryToFindBlocksOnPage( text, pageTitle ) {
-		text = text.replace( '"', '\"' );
-		pageTitle = pageTitle.replace( '"', '\"' );
+		text = text.replace( '"', '"' );
+		pageTitle = pageTitle.replace( '"', '"' );
 
 		return `[:find ?uid
-			:where [?b :block/string "${text}"]
+			:where [?b :block/string "${ text }"]
 				   [?b :block/uid  ?uid]
 				   [?b :block/page ?p]
-				   [?p :node/title "${pageTitle}"]]`;
+				   [?p :node/title "${ pageTitle }"]]`;
 	}
 
 	/**
@@ -122,10 +135,10 @@ class RoamPrivateApi {
 	 * @param {string} text - text to search.
 	 */
 	getQueryToFindBlocks( text ) {
-		text = text.replace( '"', '\"' );
+		text = text.replace( '"', '"' );
 		return `[:find ?uid ?string ?title :where
 			[?b :block/string ?string]
-			[(clojure.string/includes? ?string "${text}")]
+			[(clojure.string/includes? ?string "${ text }")]
 			[?b :block/uid  ?uid]
 			[?b :block/page ?p]
 			[?p :node/title ?title]
@@ -139,10 +152,7 @@ class RoamPrivateApi {
 	 */
 	async removeImportBlockFromDailyNote() {
 		await this.deleteBlocksMatchingQuery(
-			this.getQueryToFindBlocksOnPage(
-				'Import',
-				this.dailyNoteTitle()
-			),
+			this.getQueryToFindBlocksOnPage( 'Import', this.dailyNoteTitle() ),
 			1
 		);
 		//Lets give time to sync
@@ -176,7 +186,7 @@ class RoamPrivateApi {
 		const latestExport = this.getLatestFile( this.options.folder );
 		const content = await this.getContentsOfRepo( this.options.folder, latestExport );
 		if ( autoremove ) {
-			fs.unlinkSync( latestExport );
+			unlinkSync( latestExport );
 		}
 		await this.close();
 		return content;
@@ -188,7 +198,7 @@ class RoamPrivateApi {
 		if ( this.browser ) {
 			return this.browser;
 		}
-		this.browser = await puppeteer.launch( this.options );
+		this.browser = await launch( this.options );
 		try {
 			this.page = await this.browser.newPage();
 			this.page.setDefaultTimeout( 60000 );
@@ -210,11 +220,11 @@ class RoamPrivateApi {
 	/**
 	 * Import blocks to your Roam graph
 	 * @see examples/import.js.
-	 * @param {array} items 
+	 * @param {array} items
 	 */
 	async import( items = [] ) {
-		const fileName = path.resolve( this.options.folder, 'roam-research-private-api-sync.json' );
-		fs.writeFileSync( fileName, JSON.stringify( items ) );
+		const fileName = _resolve( this.options.folder, 'roam-research-private-api-sync.json' );
+		writeFileSync( fileName, JSON.stringify( items ) );
 		await this.logIn();
 		await this.page.waitForSelector( '.bp3-icon-more' );
 		await this.clickMenuItem( 'Import Files' );
@@ -238,17 +248,17 @@ class RoamPrivateApi {
 
 	/**
 	 * Inserts text to your quickcapture.
-	 * @param {string} text 
+	 * @param {string} text
 	 */
 	async quickCapture( text = [] ) {
 		await this.logIn();
 		const page = await this.browser.newPage();
-		await page.emulate( puppeteer.devices[ 'iPhone X' ] );
+		await page.emulate( KnownDevices[ 'iPhone X' ] );
 		// set user agent (override the default headless User Agent)
 		await page.goto( 'https://roamresearch.com/#/app/' + this.db );
 
 		await page.waitForSelector( '#block-input-quick-capture-window-qcapture' );
-		if ( isString( text ) ) {
+		if (typeof(text) === 'string') {
 			text = [ text ];
 		}
 
@@ -264,7 +274,7 @@ class RoamPrivateApi {
 
 	/**
 	 * Click item in the side-menu. This is mostly internal.
-	 * @param {string} title 
+	 * @param {string} title
 	 */
 	async clickMenuItem( title ) {
 		await this.page.click( '.bp3-icon-more' );
@@ -284,7 +294,7 @@ class RoamPrivateApi {
 
 	/**
 	 * Download Roam export to a selected folder.
-	 * @param {string} folder 
+	 * @param {string} folder
 	 */
 	async downloadExport( folder ) {
 		await this.page._client.send( 'Page.setDownloadBehavior', {
@@ -331,50 +341,51 @@ class RoamPrivateApi {
 
 	/**
 	 * Get the freshest file in the directory, for finding the newest export.
-	 * @param {string} dir 
+	 * @param {string} dir
 	 */
 	getLatestFile( dir ) {
 		const orderReccentFiles = ( dir ) =>
-			fs
-				.readdirSync( dir )
-				.filter( ( f ) => fs.lstatSync( path.resolve( dir, f ) ) && fs.lstatSync( path.resolve( dir, f ) ).isFile() )
+			readdirSync( dir )
+				.filter(
+					( f ) => lstatSync( _resolve( dir, f ) ) && lstatSync( _resolve( dir, f ) ).isFile()
+				)
 				.filter( ( f ) => f.indexOf( 'Roam-Export' ) !== -1 )
-				.map( ( file ) => ( { file, mtime: fs.lstatSync( path.resolve( dir, file ) ).mtime } ) )
+				.map( ( file ) => ( { file, mtime: lstatSync( _resolve( dir, file ) ).mtime } ) )
 				.sort( ( a, b ) => b.mtime.getTime() - a.mtime.getTime() );
 
 		const getMostRecentFile = ( dir ) => {
 			const files = orderReccentFiles( dir );
 			return files.length ? files[ 0 ] : undefined;
 		};
-		return path.resolve( dir, getMostRecentFile( dir ).file );
+		return _resolve( dir, getMostRecentFile( dir ).file );
 	}
 
 	/**
 	 * Unzip the export and get the content.
-	 * @param {string} dir 
-	 * @param {string} file 
+	 * @param {string} dir
+	 * @param {string} file
 	 */
 	getContentsOfRepo( dir, file ) {
 		return new Promise( ( resolve, reject ) => {
-			const stream = fs.createReadStream( file ).pipe( unzip.Parse() );
+			const stream = createReadStream( file ).pipe( Parse() );
 			stream.on( 'entry', function ( entry ) {
 				var fileName = entry.path;
 				var type = entry.type; // 'Directory' or 'File'
 				var size = entry.size;
 				if ( fileName.indexOf( '.json' ) != -1 ) {
-					entry.pipe( fs.createWriteStream( path.resolve( dir, 'db.json' ) ) );
+					entry.pipe( createWriteStream( _resolve( dir, 'db.json' ) ) );
 				} else {
 					entry.autodrain();
 				}
 			} );
 			// Timeouts are here so that the system locks can be removed - takes time on some systems.
 			stream.on( 'close', function () {
-				setTimeout( function() {
-					fs.readFile( path.resolve( dir, 'db.json' ), 'utf8', function ( err, data ) {
+				setTimeout( function () {
+					readFile( _resolve( dir, 'db.json' ), 'utf8', function ( err, data ) {
 						if ( err ) {
 							reject( err );
 						} else {
-							resolve( JSON.parse( data ) );	
+							resolve( JSON.parse( data ) );
 						}
 					} );
 				}, 1000 );
@@ -383,4 +394,4 @@ class RoamPrivateApi {
 	}
 }
 
-module.exports = RoamPrivateApi;
+export default RoamPrivateApi;
